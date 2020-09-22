@@ -37,12 +37,12 @@ library(grid)
 options(scipen = 0, digits = 7)
 
 # Import data - two files because combined file size is greater than the 500K records allowed by EIM
-soil_raw_detect <- read_csv("Data/Soil_Detect_2000_2020.csv",
+soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000_2020.csv",
                             col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_detect) %<>% tolower
 names(soil_raw_detect) <- make.names(names(soil_raw_detect), unique=TRUE)
 
-soil_raw_nondetect <- read_csv("Data/Soil_Nondetect_2000_2020.csv",
+soil_raw_nondetect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Nondetect_2000_2020.csv",
                                col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_nondetect) %<>% tolower
 names(soil_raw_nondetect) <- make.names(names(soil_raw_nondetect), unique=TRUE)
@@ -60,7 +60,7 @@ rm(soil_raw_detect, soil_raw_nondetect)
 # Import Ryti Soil Background and filter to only soils BV and soils max value.
 #####
 
-ryti_bk_raw <- read_excel("Data/Ryti Soil Backgrounds.xlsx")
+ryti_bk_raw <- read_excel("../../SIP/SIP_soil_screening/Data/Ryti Soil Backgrounds.xlsx")
 names(ryti_bk_raw) %<>% tolower
 names(ryti_bk_raw) <- make.names(names(ryti_bk_raw), unique=TRUE)
 ryti_bk_raw <- ryti_bk_raw %>% rename(parameter.code = parameter_code) %>%
@@ -113,7 +113,7 @@ View(fd_summary_allh)
 #####
 # Import Residential SSLs
 #####
-residential_ssl <- read_csv("Data/RESIDENTIAL SSL_03_25_2020.csv")
+residential_ssl <- read_csv("../../SIP/SIP_soil_screening/Data/RESIDENTIAL SSL_03_25_2020.csv")
 names(residential_ssl) %<>% tolower
 names(residential_ssl) <- make.names(names(residential_ssl), unique=TRUE)
 residential_ssl <- residential_ssl %>% 
@@ -187,7 +187,7 @@ fd_summary <- fd_summary %>%
 
 View(fd_summary)
 
-write_excel_csv(fd_summary, "Output/FD_Summary_Soils_w_Tiers_20200807.csv")
+write_excel_csv(fd_summary, "../../SIP/SIP_soil_screening/Output/FD_Summary_Soils_w_Tiers_20200807.csv")
 
 ########################################################
 # Create tables for SIP documents
