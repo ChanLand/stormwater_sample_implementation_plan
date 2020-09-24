@@ -63,7 +63,7 @@ sw_combo <- sw %>%
 # but are not really important to distiguish here because we'll just need the exceedance flag info
 
 ##################################################################
-# Classify into tiers for all_sw with the hardness_dependent copper values
+# Classify into tiers for all_sw 
 all_sw <- sw_combo %>%
   arrange(location_id_alias, parameter_name, field_preparation_code, detect_flag) %>%
   # Note: anything that does not have a TAL will have an NA for tier
@@ -79,7 +79,7 @@ all_sw <- sw_combo %>%
   )) 
 
 
-# Confirm there are no NAs in the HD or BLM tier columns
+# Confirm there are no NAs in the HD tier column
 if (sum(is.na(all_sw$HD.tier)) == 0) {
   print('Lookin good!')
 } else {
@@ -97,11 +97,18 @@ all_sw_soil <- all_sw %>%
   filter(!((soil_tier == 'Tier 1' | soil_tier == 'ND') & (is.na(HD.tier.final)))) %>% # can exclude all soil data for parameters not measured in SW that are T1 or ND
   filter(location_id_alias %in% sample_locs) # only include SMAs that have collected a sample for the next part
 
+# Which SMAs do not have soil data?
+SW_smas <- as_tibble(unique(all_sw$location_id_alias))
+soil_smas <- as_tibble(unique(soil$sma.number))
+
+just_SW_smas <- anti_join(SW_smas, soil_smas)
+rm(SW_smas, soil_smas)
 ####################################################
 # List of analytes in each tier for hardness dependent
 HD_tiers <- all_sw_soil %>%
   group_by(location_id_alias, HD.tier.final) %>%
-  summarize(exceedance_n = n(), parameter_exceedances = paste(parameter_name, collapse = ", "))
+  summarize(exceedance_n = n(), parameter_exceedances = paste(parameter_name, collapse = ", ")) %>%
+  mutate(soil_data = ifelse(location_id_alias %in% just_SW_smas$value, 'N', 'Y'))
 
 # Just out of curiousity, see what results would be if we didn't include soil
 # HD_tiers_no_soil <- all_sw %>%
@@ -124,18 +131,23 @@ HD_tiers <- all_sw_soil %>%
 #               99                70                16 
 
 HD_tiers_wide <- HD_tiers %>% 
-  select(1:2, 4) %>%
+  select(1:2, 4:5) %>%
   pivot_wider(names_from = HD.tier.final, values_from = parameter_exceedances) %>%
   mutate(action = 
            case_when(
-             (is.na(`Tier 0`) & is.na(`Tier 2`) & is.na(`Tier 3`)) ~ 'Remove site',
-             (is.na(`Tier 3`) & !is.na(`Tier 2`) & is.na(`Tier 0`)) ~ 'LTS',
-             (`Tier 3` == 'Gross alpha' & is.na(`Tier 0`)) ~ 'LTS',
+             (is.na(`Tier 0`) & is.na(`Tier 2`) & is.na(`Tier 3`) & soil_data == 'Y') ~ 'Remove site',
+             (is.na(`Tier 0`) & is.na(`Tier 2`) & is.na(`Tier 3`) & soil_data == 'N') ~ 'Remove site, pending soil data',
+             (is.na(`Tier 3`) & !is.na(`Tier 2`) & is.na(`Tier 0`) & soil_data == 'Y') ~ 'LTS',
+             (is.na(`Tier 3`) & !is.na(`Tier 2`) & is.na(`Tier 0`) & soil_data == 'N') ~ 'LTS, pending soil data',
+             (`Tier 3` == 'Gross alpha' & is.na(`Tier 0`) & soil_data == 'Y') ~ 'LTS',
+             (`Tier 3` == 'Gross alpha' & is.na(`Tier 0`) & soil_data == 'N') ~ 'LTS, pending soil data',
              (!is.na(`Tier 0`)) ~ 'Tier 0',
-             TRUE ~ 'Corrective Action'
+             (!is.na('Tier 3') & `Tier 3` != 'Gross alpha' & soil_data == 'Y') ~ 'Corrective Action',
+             TRUE ~ 'Corrective Action, pending soil data'
            ))
 
-write_xlsx(HD_tiers_wide, 'Output/Tables/HD_tiers_and_recs_new_copper.xlsx')
+#write_xlsx(HD_tiers_wide, 'Output/Tables/HD_tiers_and_recs_new_copper.xlsx')
+
 # Before getting the breakdown of tiers, 
 # look at excel file and identify any SMAs with just aroclor T0 where we were monitoring PCBs - these should not be T0
 
@@ -174,7 +186,7 @@ soil_no_SW <- all_sw %>%
   full_join(soil, by = c('location_id_alias' = 'sma.number', 'parameter_name' = 'parameter.name')) %>%
   ungroup() %>%
   filter(!(location_id_alias %in% sample_locs)) %>%
-  select(1,2,29) %>%
+  select(1,2,28) %>%
   group_by(location_id_alias, soil_tier) %>%
   summarize(exceedance_n = n(), parameter_exceedances = paste(parameter_name, collapse = ", "))
   
@@ -189,6 +201,7 @@ soil_no_SW_wide <- soil_no_SW %>%
 
 no_SW_soil_POCs <- tibble(
                       location_id_alias = soil_no_SW_wide$location_id_alias,
+                      soil_data = 'Y',
                       `No TAL` = NA,
                       `Tier 0` = soil_no_SW_wide$`Tier 2`,
                       `Tier 1` = NA,
@@ -202,10 +215,54 @@ HD_tiers_wide_w_soil <- HD_tiers_wide %>% bind_rows(no_SW_soil_POCs) %>%
 
 write_xlsx(HD_tiers_wide_w_soil, 'Output/Tables/HD_tiers_and_recs_w_soil.xlsx')
 
+############################################################
+############################################################
+# Some of the analytes listed in Tier 0 do not have a water quality standard
 
+# In this version, filter those out and see how many SMAs are changed from Tier 0 to something else
 
+# Load list of parameters with WQS or TAL
+standards <- read_csv('../../SIP/SIP_soil_screening/Data/all_water_qual_parameters.csv')
 
+soil_wqs <- soil %>% 
+  filter(parameter.name %in% standards$Parameter | str_detect(parameter.name, 'PCB-') | str_detect(parameter.name, 'Aroclor'))
 
+all_sw_soil_wqs <- all_sw %>%
+  full_join(soil_wqs, by = c('location_id_alias' = 'sma.number', 'parameter_name' = 'parameter.name')) %>%
+  mutate(HD.tier.final = ifelse(is.na(HD.tier) & soil_tier == 'Tier 2', 'Tier 0', HD.tier)) %>% # there are no NAs in HD tiers columns so anything with an NA in this df is something that was measured in soil but not SW
+  filter(!((soil_tier == 'Tier 1' | soil_tier == 'ND') & (is.na(HD.tier.final)))) %>% # can exclude all soil data for parameters not measured in SW that are T1 or ND
+  filter(location_id_alias %in% sample_locs) # only include SMAs that have collected a sample for the next part
 
+HD_tiers_wqs <- all_sw_soil_wqs %>%
+  group_by(location_id_alias, HD.tier.final) %>%
+  summarize(exceedance_n = n(), parameter_exceedances = paste(parameter_name, collapse = ", ")) %>%
+  mutate(soil_data = ifelse(location_id_alias %in% just_SW_smas$value, 'N', 'Y'))
+
+HD_tiers_wide_wqs <- HD_tiers_wqs %>% 
+  select(1:2, 4:5) %>%
+  pivot_wider(names_from = HD.tier.final, values_from = parameter_exceedances) %>%
+  mutate(action = 
+           case_when(
+             (is.na(`Tier 0`) & is.na(`Tier 2`) & is.na(`Tier 3`) & soil_data == 'Y') ~ 'Remove site',
+             (is.na(`Tier 0`) & is.na(`Tier 2`) & is.na(`Tier 3`) & soil_data == 'N') ~ 'Remove site, pending soil data',
+             (is.na(`Tier 3`) & !is.na(`Tier 2`) & is.na(`Tier 0`) & soil_data == 'Y') ~ 'LTS',
+             (is.na(`Tier 3`) & !is.na(`Tier 2`) & is.na(`Tier 0`) & soil_data == 'N') ~ 'LTS, pending soil data',
+             (`Tier 3` == 'Gross alpha' & is.na(`Tier 0`) & soil_data == 'Y') ~ 'LTS',
+             (`Tier 3` == 'Gross alpha' & is.na(`Tier 0`) & soil_data == 'N') ~ 'LTS, pending soil data',
+             (!is.na(`Tier 0`)) ~ 'Tier 0',
+             (!is.na('Tier 3') & `Tier 3` != 'Gross alpha' & soil_data == 'Y') ~ 'Corrective Action',
+             TRUE ~ 'Corrective Action, pending soil data'
+           ))
+
+HD_tiers_wide_wqs <- HD_tiers_wide_wqs %>%
+  mutate(action = 
+           case_when(
+             location_id_alias == 'A-SMA-3' ~ 'Corrective Action',
+             location_id_alias == 'S-SMA-0.25' ~ 'Corrective Action',
+             location_id_alias == 'S-SMA-3.72' ~ 'Remove site',
+             TRUE ~ as.character(action)
+           ))
+
+table(HD_tiers_wide_wqs$action)
 
 
