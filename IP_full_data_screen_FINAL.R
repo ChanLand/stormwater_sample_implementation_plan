@@ -177,7 +177,7 @@ table(HD_tiers_wide$action)
 #               54                40                13                78 
 
 # These will be the data files for the maps
-write_excel_csv(HD_tiers_wide, 'Output/Tables/HD_tiers_final.csv')
+#write_excel_csv(HD_tiers_wide, 'Output/soil_screen_for_maps.csv')
 
 ###########################################################
 # Add in soil data from SMAs where SW samples have not been collected yet
@@ -213,7 +213,7 @@ no_SW_soil_POCs <- tibble(
 HD_tiers_wide_w_soil <- HD_tiers_wide %>% bind_rows(no_SW_soil_POCs) %>%
   arrange(location_id_alias)
 
-write_xlsx(HD_tiers_wide_w_soil, 'Output/Tables/HD_tiers_and_recs_w_soil.xlsx')
+write_xlsx(HD_tiers_wide_w_soil, 'Output/soil_screen.xlsx')
 
 ############################################################
 ############################################################
@@ -265,4 +265,8 @@ HD_tiers_wide_wqs <- HD_tiers_wide_wqs %>%
 
 table(HD_tiers_wide_wqs$action)
 
+# Join soil data to HD_tiers_wide_wqs 
+HD_tiers_wide_wqs_soil <- HD_tiers_wide_wqs %>% bind_rows(no_SW_soil_POCs) %>%
+  arrange(location_id_alias)
 
+write_xlsx(HD_tiers_wide_wqs_soil, 'Output/soil_screen_WQS.xlsx')
