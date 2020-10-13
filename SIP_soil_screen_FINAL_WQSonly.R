@@ -34,7 +34,9 @@ library(grid)
 # This option prevents values from being in scientific notation
 #options(scipen = 999) # keeps numbers from being in scientific notation
 # Put back to default settings
-options(scipen = 0, digits = 7)
+#options(scipen = 0, digits = 7)
+
+#options(scipen=2, digits=3)
 
 # Import data - two files because combined file size is greater than the 500K records allowed by EIM
 soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000_2020.csv",
@@ -193,6 +195,9 @@ fd_summary <- fd_summary %>%
 
 View(fd_summary)
 
+# This doesn't seem to do anything... 
+# fd_summary$screening.level <- signif(fd_summary$screening.level, 3)
+
 write_excel_csv(fd_summary, "Output/FD_Summary_Soils_w_Tiers_WQSonly_20201007.csv")
 
 ########################################################
@@ -211,7 +216,13 @@ max_locations <- fd_summary %>%
 # Create a table for each SMA
 smas <- unique(fd_summary$sma.number)
 
-# Function to create table
+# Create and save soil table
+######################################3
+# This function deals with sigfigs - ensures 3 sigfigs are reported, but in the case that the last sigfig
+# is a zero before a decimal, it drops the decimal so there is not something like "250."
+sigfig <- function(vec, digits){
+  return(gsub("\\.$", "", formatC(signif(vec,digits=digits), digits=digits, format="fg", flag="#")))
+}
 
 make_soil_table <- function(df, location){
   location <- enquo(location)
@@ -219,6 +230,10 @@ make_soil_table <- function(df, location){
   table <- df %>%
     filter(sma.number == !! location) %>%
     select(parameter.name, screen.type, screening.level, max_result, max_date, max_location) %>%
+    mutate(screening.level = sigfig(screening.level, 3),
+           max_result = sigfig(max_result, 3)) %>%
+    # mutate(screening.level = sprintf('%#0.3g', screening.level),
+    # max_result = sprintf('%#0.3g', max_result)) %>%
     rename(`Screening Type` = screen.type, `Screening Level (mg/kg)` = screening.level,
            `Max Result (mg/kg)` = max_result, `Date of Max Result` = max_date, `Location of Max Result` = max_location) %>%
     arrange(parameter.name) %>%
@@ -227,6 +242,9 @@ make_soil_table <- function(df, location){
   return(table)
 }
 
+# Hmmm... numbers show up in scientific notation with 3 sigfigs in max_locations, but output with variable numbers of sigfigs in make_soil_table
+# Leave it for now and check in on where we stand with scientific notation.
+test <- make_soil_table(max_locations, 'CDV-SMA-1.4')
 
 # Function to export tables in nice format to correct folder
 save_soil_table <- function(sma){
@@ -265,6 +283,8 @@ save_soil_table <- function(sma){
 
 
 # Loop through all SMAs to save to corresponding folders
+
+save_soil_table('CDV-SMA-1.4')
 
 for (location in smas) {
   save_soil_table(location)
