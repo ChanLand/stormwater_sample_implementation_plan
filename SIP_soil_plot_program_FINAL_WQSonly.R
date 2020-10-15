@@ -29,12 +29,12 @@ if(!require(scales)){
   install.packages("scales"); require(scales)}
 
 # Import data - two files because combined file size is greater than the 500K records allowed by EIM
-soil_raw_detect <- read_csv("Data/Soil_Detect_2000_2020.csv",
+soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000-2020_10_15_2020.csv",
                             col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_detect) %<>% tolower
 names(soil_raw_detect) <- make.names(names(soil_raw_detect), unique=TRUE)
 
-soil_raw_nondetect <- read_csv("Data/Soil_Nondetect_2000_2020.csv",
+soil_raw_nondetect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Nondetect_2000-2020_10_15_2020.csv",
                                col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_nondetect) %<>% tolower
 names(soil_raw_nondetect) <- make.names(names(soil_raw_nondetect), unique=TRUE)
@@ -47,11 +47,15 @@ soil_raw$field.preparation.code <- as.character(soil_raw$field.preparation.code)
 
 rm(soil_raw_detect, soil_raw_nondetect)
 
+# Load list of parameters with WQS or TAL
+###################### This will be used to filter the FD tables below
+standards <- read_csv('../../SIP/SIP_soil_screening/Data/all_water_qual_parameters.csv')
+
 #####
 # Import Ryti Soil Background and filter to only soils BV and soils max value.
 #####
 
-ryti_bk_raw <- read_excel("Data/Ryti Soil Backgrounds.xlsx")
+ryti_bk_raw <- read_excel("../../SIP/SIP_soil_screening/Data/Ryti Soil Backgrounds.xlsx")
 names(ryti_bk_raw) %<>% tolower
 names(ryti_bk_raw) <- make.names(names(ryti_bk_raw), unique=TRUE)
 ryti_bk_raw <- ryti_bk_raw %>% rename(parameter.code = parameter_code) %>%
@@ -75,7 +79,7 @@ rm(ryti_bk_raw)
 #################################################
 
 # Import SSLs
-residential_ssl <- read_csv("Data/RESIDENTIAL SSL_03_25_2020.csv")
+residential_ssl <- read_csv("../../SIP/SIP_soil_screening/Data/RESIDENTIAL SSL_03_25_2020.csv")
 names(residential_ssl) %<>% tolower
 names(residential_ssl) <- make.names(names(residential_ssl), unique=TRUE)
 residential_ssl <- residential_ssl %>% 
@@ -86,7 +90,9 @@ residential_ssl <- residential_ssl %>%
 
 # Inner join SSLs with soil data
 soil_SSL <- inner_join(soil_raw, residential_ssl, by=c("parameter.code"="parameter.code","parameter.name"="parameter.name","report.units"="units")) %>%
-  mutate(ssl_10.ratio = report.result/SSL_ten_p) 
+  mutate(ssl_10.ratio = report.result/SSL_ten_p) %>%
+  filter(parameter.name %in% standards$Parameter | str_detect(parameter.name, 'PCB-') | str_detect(parameter.name, 'Aroclor') | parameter.name == 'Chromium hexavalent ion') # called 'Chromium VI' in standards)
+  
 soil_SSL$upper.limit = signif(soil_SSL$upper.limit,3)
 soil_SSL$SSL_ten_p = signif(soil_SSL$SSL_ten_p,3)
 soil_SSL$ssl_10.ratio = signif(soil_SSL$ssl_10.ratio, 3)
@@ -182,7 +188,7 @@ save_ssl_plots <- function(sma){
   plots <- sma_ssl_plot(soil_SSL, location = sma)
   
   for (i in 1:length(plots)) {
-    ggsave(plots[[i]], filename = paste0('Output/', sma, '/', sma, '_', 'SSL_plot', '_', i, '.bmp'), height = 8, width = 10)
+    ggsave(plots[[i]], filename = paste0('../../SIP/SIP_soil_screening/Output/', sma, '/', sma, '_', 'SSL_plot', '_', i, '.bmp'), height = 8, width = 10)
   }
 }
 
@@ -196,7 +202,7 @@ ssl_locations_3 <- ssl_locations_all[81:120]
 ssl_locations_4 <- ssl_locations_all[121:159]
 
 
-for (location in ssl_locations_4) {
+for (location in ssl_locations_all) {
   save_ssl_plots(location)
 }
 
@@ -206,7 +212,10 @@ for (location in ssl_locations_4) {
 
 soil_inorganic_bv <- inner_join(soil_raw, ryti_bk, by=c("parameter.code"="parameter.code", "parameter.name" = "mg.kg.units", "report.units"="report.units")) %>%
   spread(key = key, value = value) %>%
-  mutate(allh.ratio = report.result/allh)
+  mutate(allh.ratio = report.result/allh) %>%
+  filter(parameter.name %in% standards$Parameter | str_detect(parameter.name, 'PCB-') | str_detect(parameter.name, 'Aroclor') | parameter.name == 'Chromium hexavalent ion') # called 'Chromium VI' in standards)
+
+  
 soil_inorganic_bv$allh = signif(soil_inorganic_bv$allh,3)
 soil_inorganic_bv$allh.ratio = signif(soil_inorganic_bv$allh.ratio,3)
 
@@ -253,7 +262,7 @@ save_btv_plots <- function(sma){
   
   plot <- sma_btv_plot(soil_inorganic_bv, location = sma)
   
-  ggsave(plot, filename = paste0('Output/', sma, '/', sma, '_', 'BTV_plot', '.bmp'), height = 8, width = 10)
+  ggsave(plot, filename = paste0('../../SIP/SIP_soil_screening/Output/', sma, '/', sma, '_', 'BTV_plot', '.bmp'), height = 8, width = 10)
   
 }
 
