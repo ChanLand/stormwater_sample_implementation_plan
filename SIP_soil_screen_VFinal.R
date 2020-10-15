@@ -37,12 +37,12 @@ library(grid)
 options(scipen = 0, digits = 7)
 
 # Import data - two files because combined file size is greater than the 500K records allowed by EIM
-soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000_2020.csv",
+soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000-2020_10_15_2020.csv",
                             col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_detect) %<>% tolower
 names(soil_raw_detect) <- make.names(names(soil_raw_detect), unique=TRUE)
 
-soil_raw_nondetect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Nondetect_2000_2020.csv",
+soil_raw_nondetect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Nondetect_2000-2020_10_15_2020.csv",
                                col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_nondetect) %<>% tolower
 names(soil_raw_nondetect) <- make.names(names(soil_raw_nondetect), unique=TRUE)
@@ -187,7 +187,7 @@ fd_summary <- fd_summary %>%
 
 View(fd_summary)
 
-write_excel_csv(fd_summary, "../../SIP/SIP_soil_screening/Output/FD_Summary_Soils_w_Tiers_20200807.csv")
+write_excel_csv(fd_summary, "../../SIP/SIP_soil_screening/Output/FD_Summary_Soils_w_Tiers_202010115.csv")
 
 ########################################################
 # Create tables for SIP documents
