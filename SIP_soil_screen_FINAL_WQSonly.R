@@ -39,12 +39,12 @@ library(grid)
 #options(scipen=2, digits=3)
 
 # Import data - two files because combined file size is greater than the 500K records allowed by EIM
-soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000_2020.csv",
+soil_raw_detect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Detect_2000-2020_10_15_2020.csv",
                             col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_detect) %<>% tolower
 names(soil_raw_detect) <- make.names(names(soil_raw_detect), unique=TRUE)
 
-soil_raw_nondetect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Nondetect_2000_2020.csv",
+soil_raw_nondetect <- read_csv("../../SIP/SIP_soil_screening/Data/Soil_Nondetect_2000-2020_10_15_2020.csv",
                                col_types = list('sample_date' = col_date('%m/%d/%Y')))
 names(soil_raw_nondetect) %<>% tolower
 names(soil_raw_nondetect) <- make.names(names(soil_raw_nondetect), unique=TRUE)
@@ -90,7 +90,7 @@ rm(ryti_bk_raw)
 #####
 
 soil_inorganic_bv <- inner_join(soil_raw, ryti_bk, by=c("parameter.code"="parameter.code", "parameter.name" = "mg.kg.units", "report.units"="report.units")) %>%
-  spread(key = key, value = value) %>%
+  spread(key = key, value = value) %>% # Creates allh column
   mutate(allh.ratio = report.result/allh)
 soil_inorganic_bv$allh = signif(soil_inorganic_bv$allh,3)
 soil_inorganic_bv$allh.ratio = signif(soil_inorganic_bv$allh.ratio,3)
@@ -198,7 +198,7 @@ View(fd_summary)
 # This doesn't seem to do anything... 
 # fd_summary$screening.level <- signif(fd_summary$screening.level, 3)
 
-write_excel_csv(fd_summary, "Output/FD_Summary_Soils_w_Tiers_WQSonly_20201007.csv")
+write_excel_csv(fd_summary, "Output/FD_Summary_Soils_w_Tiers_WQSonly_20201015.csv")
 
 ########################################################
 # Create tables for SIP documents
@@ -244,7 +244,7 @@ make_soil_table <- function(df, location){
 
 # Hmmm... numbers show up in scientific notation with 3 sigfigs in max_locations, but output with variable numbers of sigfigs in make_soil_table
 # Leave it for now and check in on where we stand with scientific notation.
-test <- make_soil_table(max_locations, 'CDV-SMA-1.4')
+#test <- make_soil_table(max_locations, 'CDV-SMA-1.4')
 
 # Function to export tables in nice format to correct folder
 save_soil_table <- function(sma){
@@ -284,7 +284,7 @@ save_soil_table <- function(sma){
 
 # Loop through all SMAs to save to corresponding folders
 
-save_soil_table('CDV-SMA-1.4')
+#save_soil_table('CDV-SMA-1.4')
 
 for (location in smas) {
   save_soil_table(location)
