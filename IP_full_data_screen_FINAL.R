@@ -2,6 +2,8 @@
 # This expands on copper_BLM_hardness_dep_comparison_V2.R
 # Rather than just focusing on SMAs where copper is T1, classify all SMAs that have sampled
 # AMC, 2020-08
+# 2020-10: Code has been modified to produce two different spreadsheets - one includes all soil exceedances, 
+# while the other only contains exceedances for parameters that have WQSs; this moves some Tier 0 SMAs to other Tiers
 
 library(tidyverse)
 library(lubridate)
@@ -11,7 +13,7 @@ library(writexl)
 #############################################
 
 # Stormwater screened data - these are screened using hardness dependent standards
-sw <- read_csv('../../Site_specific/Site_specific_evaluation/Data/SW_data082120_PCBcongener.csv',
+sw <- read_csv('../../SIP/SIP_soil_screening/Data/SW_data_sigfigUpdate101520.csv',
                 col_types = list('sample_date' = col_date('%m/%d/%Y')))
 
 # Watershed associations for IP sites
@@ -22,7 +24,7 @@ driosmas <- driosmas %>%
   select(-2) # don't need distance to Rio here
 
 # Soil screened data
-soil <- read_csv('../../Site_specific/Site_specific_evaluation/Data/FD_Summary_Soils_w_Tiers_20200807.csv',
+soil <- read_csv('../../SIP/SIP_soil_screening/Output/FD_Summary_Soils_w_Tiers_202010115.csv',
                  col_types = list('max_date' = col_date("%Y-%m-%d"))) %>%
   select(sma.number, parameter.name, detect.flag, screen.type, soil_tier) %>%
   # Just want one result per parameter per SMA (eg, not a detect and non-detect)
@@ -144,6 +146,13 @@ HD_tiers_wide <- HD_tiers %>%
              (!is.na(`Tier 0`)) ~ 'Tier 0',
              (!is.na('Tier 3') & `Tier 3` != 'Gross alpha' & soil_data == 'Y') ~ 'Corrective Action',
              TRUE ~ 'Corrective Action, pending soil data'
+           )) %>%
+  mutate(action_wo_soil = 
+           case_when(
+             is.na(`Tier 2`) & is.na(`Tier 3`) ~ 'SW Tier 1',
+             !is.na(`Tier 2`) & (is.na(`Tier 3`)|`Tier 3` == 'Gross alpha') ~ 'SW Tier 2',
+             is.na(`Tier 2`) & `Tier 3` == 'Gross alpha' ~ 'SW Tier 2', 
+             TRUE ~ 'SW Tier 3'
            ))
 
 #write_xlsx(HD_tiers_wide, 'Output/Tables/HD_tiers_and_recs_new_copper.xlsx')
@@ -173,8 +182,7 @@ HD_tiers_wide <- HD_tiers_wide %>%
            ))
 
 table(HD_tiers_wide$action)
-# Corrective Action               LTS       Remove site            Tier 0 
-#               54                40                13                78 
+
 
 # These will be the data files for the maps
 #write_excel_csv(HD_tiers_wide, 'Output/soil_screen_for_maps.csv')
@@ -207,13 +215,34 @@ no_SW_soil_POCs <- tibble(
                       `Tier 1` = NA,
                       `Tier 2` = NA, 
                       `Tier 3` = NA,
-                      `action` = 'Soil data only')
+                      `action` = 'Soil data only',
+                      `action_wo_soil` = NA)
 
-# Join soil data to HD_tiers_wide and BLM_tiers_wide
+# Join soil data to HD_tiers_wide 
 HD_tiers_wide_w_soil <- HD_tiers_wide %>% bind_rows(no_SW_soil_POCs) %>%
   arrange(location_id_alias)
 
-write_xlsx(HD_tiers_wide_w_soil, 'Output/soil_screen.xlsx')
+# Add in SMAs with no SW or soil data
+no_data_sma <- anti_join(driosmas['location_id_alias'], HD_tiers_wide_w_soil['location_id_alias']) 
+  
+no_data_sma_df <- tibble(
+                    location_id_alias = no_data_sma$location_id_alias,
+                    soil_data = 'N',
+                    `No TAL` = NA,
+                    `Tier 0` = NA,
+                    `Tier 1` = NA,
+                    `Tier 2` = NA, 
+                    `Tier 3` = NA,
+                    `action` = 'Tier 0',
+                    `action_wo_soil` = NA)
+
+# Join to HD_tiers_wide_w_soil to have complete list of 250 SMAs
+HD_tiers_wide_all_SMAs <- HD_tiers_wide_w_soil %>% bind_rows(no_data_sma_df) %>%
+  arrange(location_id_alias)
+
+table(HD_tiers_wide_all_SMAs$action)
+
+write_xlsx(HD_tiers_wide_all_SMAs, 'Output/soil_screen.xlsx')
 
 ############################################################
 ############################################################
@@ -225,7 +254,7 @@ write_xlsx(HD_tiers_wide_w_soil, 'Output/soil_screen.xlsx')
 standards <- read_csv('../../SIP/SIP_soil_screening/Data/all_water_qual_parameters.csv')
 
 soil_wqs <- soil %>% 
-  filter(parameter.name %in% standards$Parameter | str_detect(parameter.name, 'PCB-') | str_detect(parameter.name, 'Aroclor'))
+  filter(parameter.name %in% standards$Parameter | str_detect(parameter.name, 'PCB-') | str_detect(parameter.name, 'Aroclor') | parameter.name == 'Chromium hexavalent ion') # called 'Chromium VI' in standards
 
 all_sw_soil_wqs <- all_sw %>%
   full_join(soil_wqs, by = c('location_id_alias' = 'sma.number', 'parameter_name' = 'parameter.name')) %>%
@@ -252,6 +281,13 @@ HD_tiers_wide_wqs <- HD_tiers_wqs %>%
              (!is.na(`Tier 0`)) ~ 'Tier 0',
              (!is.na('Tier 3') & `Tier 3` != 'Gross alpha' & soil_data == 'Y') ~ 'Corrective Action',
              TRUE ~ 'Corrective Action, pending soil data'
+           )) %>%
+  mutate(action_wo_soil = 
+           case_when(
+             is.na(`Tier 2`) & is.na(`Tier 3`) ~ 'SW Tier 1',
+             !is.na(`Tier 2`) & (is.na(`Tier 3`)|`Tier 3` == 'Gross alpha') ~ 'SW Tier 2',
+             is.na(`Tier 2`) & `Tier 3` == 'Gross alpha' ~ 'SW Tier 2', 
+             TRUE ~ 'SW Tier 3'
            ))
 
 HD_tiers_wide_wqs <- HD_tiers_wide_wqs %>%
@@ -263,10 +299,43 @@ HD_tiers_wide_wqs <- HD_tiers_wide_wqs %>%
              TRUE ~ as.character(action)
            ))
 
-table(HD_tiers_wide_wqs$action)
+# This version of just the soil exceedances only includes parameters that exceeded that have WQSs
+###################################################
+# Add in soil data from SMAs where SW samples have not been collected yet
+# THere are 48 SMAs with soil data but no SW data (162 SMAs total with soil data)
+soil_no_SW_wqs <- all_sw %>%
+  full_join(soil, by = c('location_id_alias' = 'sma.number', 'parameter_name' = 'parameter.name')) %>%
+  ungroup() %>%
+  filter(!(location_id_alias %in% sample_locs)) %>%
+  filter(parameter_name %in% standards$Parameter | str_detect(parameter_name, 'PCB-') | str_detect(parameter_name, 'Aroclor') | parameter_name == 'Chromium hexavalent ion') %>% # called 'Chromium VI' in standards
+  select(1,2,28) %>%
+  group_by(location_id_alias, soil_tier) %>%
+  summarize(exceedance_n = n(), parameter_exceedances = paste(parameter_name, collapse = ", "))
 
-# Join soil data to HD_tiers_wide_wqs 
-HD_tiers_wide_wqs_soil <- HD_tiers_wide_wqs %>% bind_rows(no_SW_soil_POCs) %>%
+soil_no_SW_wide_wqs <- soil_no_SW_wqs %>%
+  select(1:2, 4) %>%
+  pivot_wider(names_from = soil_tier, values_from = parameter_exceedances)
+# Note, parameters in Tier 2 would be considered something in Tier 0 when
+# combining with stormwater data; eg, these are soil exceedances that we need to 
+# make sure we are monitoring for in SW
+
+# Build a df with Tier 2 and location name with fillers for other columns
+
+no_SW_soil_POCs_wqs <- tibble(
+  location_id_alias = soil_no_SW_wide_wqs$location_id_alias,
+  soil_data = 'Y',
+  `No TAL` = NA,
+  `Tier 0` = soil_no_SW_wide_wqs$`Tier 2`,
+  `Tier 1` = NA,
+  `Tier 2` = NA, 
+  `Tier 3` = NA,
+  `action` = 'Soil data only',
+  `action_wo_soil` = NA)
+
+# Join soil data and SMAs with no data to HD_tiers_wide_wqs 
+HD_tiers_wide_wqs_all_SMAs <- HD_tiers_wide_wqs %>% bind_rows(no_SW_soil_POCs_wqs, no_data_sma_df) %>%
   arrange(location_id_alias)
 
-write_xlsx(HD_tiers_wide_wqs_soil, 'Output/soil_screen_WQS.xlsx')
+table(HD_tiers_wide_wqs_all_SMAs$action)
+
+write_xlsx(HD_tiers_wide_wqs_all_SMAs, 'Output/soil_screen_WQS.xlsx')
