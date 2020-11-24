@@ -13,9 +13,38 @@ library(writexl)
 #############################################
 
 # Stormwater screened data - these are screened using hardness dependent standards
-sw <- read_csv('../../SIP/SIP_soil_screening/Data/SW_data_sigfigUpdate101520.csv',
+# File with current standards:
+current_TAL <- '../../SIP/SIP_soil_screening/Data/SW_data_oldTAL_UF_Al_BTV_112320.csv'
+# File with new NMED TALs: 
+new_TAL <- '../../SIP/SIP_soil_screening/Data/SW_data_newTAL_UF_Al_BTV_112320.csv'
+
+sw <- read_csv(new_TAL,
                 col_types = list('sample_date' = col_date('%m/%d/%Y')))
 
+# THIS MAKES A PAIRED BARPLOT COMPARING EXCEEDANCE COUNTS WITH THE PROPOSED V. CURRENT TALS
+# sw_new <- read_csv(new_TAL,
+#                    col_types = list('sample_date' = col_date('%m/%d/%Y')))
+# 
+# exc_comp_df <- sw %>%
+#   filter(TAL_exceed_flag == 'Y') %>%
+#   select(parameter_name, TAL_exceed_flag) %>%
+#   mutate(which_TAL = 'Current TAL')
+# 
+# tmp <- sw_new %>%
+#   filter(TAL_exceed_flag == 'Y') %>%
+#   select(parameter_name, TAL_exceed_flag) %>%
+#   mutate(which_TAL = 'New TAL')
+# 
+# exc_comp_df <- bind_rows(exc_comp_df, tmp)
+# rm(tmp)
+# 
+# ggplot(exc_comp_df, aes(parameter_name, fill = which_TAL)) +
+#   geom_bar(position = position_dodge(preserve = "single")) +
+#   scale_fill_manual(name = NULL, values = c('Current TAL' = '#5c9867', 'New TAL' = '#8b4789')) +
+#   labs(x = NULL, y = 'Exceedance Count') +
+#   theme_bw() +
+#   theme(axis.text.x = element_text(angle = 40, hjust = 1))
+  
 # Watershed associations for IP sites
 driosmas <- read_csv("../../Site_specific/Site_specific_evaluation/Data/dRioSMAs.csv")
 # A-SMA-6 has two entries - one of them appears to be bad (says drio is 0.00087 km) - delete this to remove duplicates
@@ -112,6 +141,8 @@ HD_tiers <- all_sw_soil %>%
   summarize(exceedance_n = n(), parameter_exceedances = paste(parameter_name, collapse = ", ")) %>%
   mutate(soil_data = ifelse(location_id_alias %in% just_SW_smas$value, 'N', 'Y'))
 
+HD_tiers$HD.tier.final <- factor(HD_tiers$HD.tier.final, levels = c('No TAL', 'Tier 0', 'Tier 1', 'Tier 2', 'Tier 3'))
+
 # Just out of curiousity, see what results would be if we didn't include soil
 # HD_tiers_no_soil <- all_sw %>%
 #   group_by(location_id_alias, HD.tier) %>%
@@ -153,9 +184,11 @@ HD_tiers_wide <- HD_tiers %>%
              !is.na(`Tier 2`) & (is.na(`Tier 3`)|`Tier 3` == 'Gross alpha') ~ 'SW Tier 2',
              is.na(`Tier 2`) & `Tier 3` == 'Gross alpha' ~ 'SW Tier 2', 
              TRUE ~ 'SW Tier 3'
-           ))
+           )) %>%
+  select(location_id_alias, soil_data, `No TAL`, `Tier 0`, `Tier 1`, `Tier 2`, `Tier 3`, action, action_wo_soil) # just makes sure columns are in the correct order
 
-#write_xlsx(HD_tiers_wide, 'Output/Tables/HD_tiers_and_recs_new_copper.xlsx')
+# Same 3 SMAs need changes with the new TAL data
+# write_xlsx(HD_tiers_wide, 'Output/HD_tiers_and_recs_new_NMED_TAL.xlsx')
 
 # Before getting the breakdown of tiers, 
 # look at excel file and identify any SMAs with just aroclor T0 where we were monitoring PCBs - these should not be T0
